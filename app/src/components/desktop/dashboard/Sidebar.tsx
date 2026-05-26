@@ -3,6 +3,7 @@ import { HardDrive, Folder, Plus, RefreshCw, LogOut } from 'lucide-react';
 import { SidebarItem } from './SidebarItem';
 import { BandwidthWidget } from './BandwidthWidget';
 import { TelegramFolder, BandwidthStats } from '../../../types';
+import { flattenFolderTree } from '../../../utils/folderTree';
 
 interface SidebarProps {
     folders: TelegramFolder[];
@@ -24,6 +25,7 @@ export function Sidebar({
 }: SidebarProps) {
     const [showNewFolderInput, setShowNewFolderInput] = useState(false);
     const [newFolderName, setNewFolderName] = useState("");
+    const visibleFolders = flattenFolderTree(folders);
 
     const submitCreate = async () => {
         if (!newFolderName.trim()) return;
@@ -53,7 +55,7 @@ export function Sidebar({
                     onDrop={(e: React.DragEvent) => onDrop(e, null)}
                     folderId={null}
                 />
-                {folders.map(folder => (
+                {visibleFolders.map(({ folder, depth }) => (
                     <SidebarItem
                         key={folder.id}
                         icon={Folder}
@@ -63,6 +65,7 @@ export function Sidebar({
                         onDrop={(e: React.DragEvent) => onDrop(e, folder.id)}
                         onDelete={() => onDelete(folder.id, folder.name)}
                         folderId={folder.id}
+                        depth={depth}
                     />
                 ))}
             </nav>
@@ -75,7 +78,7 @@ export function Sidebar({
                             autoFocus
                             type="text"
                             className="w-full bg-white/10 rounded px-2 py-1 text-sm text-white focus:outline-none focus:ring-1 focus:ring-telegram-primary"
-                            placeholder="Folder Name"
+                            placeholder={activeFolderId === null ? "Folder Name" : "Subfolder Name"}
                             value={newFolderName}
                             onChange={e => setNewFolderName(e.target.value)}
                             onKeyDown={e => e.key === 'Enter' && submitCreate()}
@@ -88,7 +91,7 @@ export function Sidebar({
                         className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-telegram-subtext hover:bg-telegram-hover hover:text-telegram-text transition-colors border border-dashed border-telegram-border"
                     >
                         <Plus className="w-4 h-4" />
-                        Create Folder
+                        {activeFolderId === null ? "Create Folder" : "Create Subfolder"}
                     </button>
                 )}
             </div>

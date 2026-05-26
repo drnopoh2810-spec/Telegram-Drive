@@ -18,9 +18,31 @@ fn get_upload_cancellations() -> &'static Mutex<HashMap<String, oneshot::Sender<
     UPLOAD_CANCELLATIONS.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
+const DRIVE_FOLDER_MARKER: &str = "[telegram-drive-folder]";
+const DRIVE_PARENT_PREFIX: &str = "[telegram-drive-parent:";
+
+fn folder_about(parent_folder_id: Option<i64>) -> String {
+    let mut about = format!("Telegram Drive Storage Folder\n{}", DRIVE_FOLDER_MARKER);
+    if let Some(parent_id) = parent_folder_id {
+        about.push_str(&format!("\n{}{}]", DRIVE_PARENT_PREFIX, parent_id));
+    }
+    about
+}
+
+fn parse_parent_folder_id(about: &str) -> Option<i64> {
+    about.lines().find_map(|line| {
+        let trimmed = line.trim();
+        let raw = trimmed
+            .strip_prefix(DRIVE_PARENT_PREFIX)?
+            .strip_suffix(']')?;
+        raw.parse::<i64>().ok()
+    })
+}
+
 #[tauri::command]
 pub async fn cmd_create_folder(
     name: String,
+    parent_folder_id: Option<i64>,
     state: State<'_, TelegramState>,
 ) -> Result<FolderMetadata, String> {
     let client_opt = {
@@ -34,7 +56,7 @@ pub async fn cmd_create_folder(
         return Ok(FolderMetadata {
             id: mock_id,
             name,
-            parent_id: None,
+            parent_id: parent_folder_id,
         });
     }
     // -----------
@@ -45,7 +67,7 @@ pub async fn cmd_create_folder(
         broadcast: true,
         megagroup: false,
         title: format!("{} [TD]", name),
-        about: "Telegram Drive Storage Folder\n[telegram-drive-folder]".to_string(),
+        about: folder_about(parent_folder_id),
         geo_point: None,
         address: None,
         for_import: false,
@@ -78,7 +100,7 @@ pub async fn cmd_create_folder(
     Ok(FolderMetadata {
         id: chat_id,
         name,
-        parent_id: None,
+        parent_id: parent_folder_id,
     })
 }
 
@@ -708,15 +730,12 @@ pub async fn cmd_scan_folders(
                 
                 log::debug!("[SCAN] Processing Channel: '{}' (ID: {})", name, id);
 
-                // Strategy 1: Title
-                if name.to_lowercase().contains("[td]") {
-                    log::info!(" -> MATCH via Title: {}", name);
-                    let display_name = name.replace(" [TD]", "").replace(" [td]", "").replace("[TD]", "").replace("[td]", "").trim().to_string();
-                    folders.push(FolderMetadata { id, name: display_name, parent_id: None });
-                    continue; 
-                }
+                let title_matches = name.to_lowercase().contains("[td]");
+                let mut is_drive_folder = title_matches;
+                let mut parent_id = None;
 
-                // Strategy 2: About (Only if we are the creator to avoid rate limits on third-party channels)
+                // About is only queried for creator-owned channels to avoid rate limits
+                // on third-party channels.
                 if c.raw.creator {
                     let input_chan = tl::enums::InputChannel::Channel(tl::types::InputChannel {
                         channel_id: c.raw.id,
@@ -728,14 +747,21 @@ pub async fn cmd_scan_folders(
                     }).await {
                         Ok(tl::enums::messages::ChatFull::Full(f)) => {
                             if let tl::enums::ChatFull::Full(cf) = f.full_chat {
-                                 if cf.about.contains("[telegram-drive-folder]") {
-                                     log::info!(" -> MATCH via About: {}", name);
-                                     folders.push(FolderMetadata { id, name: name.clone(), parent_id: None });
-                                 }
+                                if cf.about.contains(DRIVE_FOLDER_MARKER) {
+                                    is_drive_folder = true;
+                                    parent_id = parse_parent_folder_id(&cf.about);
+                                }
                             }
                         },
                         Err(e) => log::warn!(" -> Failed to get full info: {}", e),
                     }
+                }
+
+                if is_drive_folder {
+                    let display_name = name.replace(" [TD]", "").replace(" [td]", "").replace("[TD]", "").replace("[td]", "").trim().to_string();
+                    log::info!(" -> MATCH: {} (parent: {:?})", display_name, parent_id);
+                    folders.push(FolderMetadata { id, name: display_name, parent_id });
+                    continue;
                 }
             },
             Peer::User(u) => {

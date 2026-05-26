@@ -29,6 +29,7 @@ import { useFileUpload } from '../../hooks/useFileUpload';
 import { useFileDownload } from '../../hooks/useFileDownload';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
 import { useSettings } from '../../context/SettingsContext';
+import { getFolderPath } from '../../utils/folderTree';
 
 export function Dashboard({ onLogout }: { onLogout: () => void }) {
     const queryClient = useQueryClient();
@@ -315,7 +316,7 @@ export function Dashboard({ onLogout }: { onLogout: () => void }) {
 
     const currentFolderName = activeFolderId === null
         ? "Saved Messages"
-        : folders.find(f => f.id === activeFolderId)?.name || "Folder";
+        : getFolderPath(folders, activeFolderId).map(f => f.name).join(" / ") || "Folder";
 
 
     const handleRootDragOver = (e: React.DragEvent) => {

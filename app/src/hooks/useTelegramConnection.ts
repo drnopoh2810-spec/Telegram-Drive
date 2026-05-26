@@ -107,15 +107,22 @@ export function useTelegramConnection(onLogoutParent: () => void) {
             const merged = [...folders];
             let added = 0;
             for (const f of foundFolders) {
-                if (!merged.find(existing => existing.id === f.id)) {
+                const existingIndex = merged.findIndex(existing => existing.id === f.id);
+                if (existingIndex === -1) {
                     merged.push(f);
                     added++;
+                } else {
+                    merged[existingIndex] = {
+                        ...merged[existingIndex],
+                        ...f,
+                        parent_id: f.parent_id ?? merged[existingIndex].parent_id ?? null,
+                    };
                 }
             }
+            setFolders(merged);
+            await store.set('folders', merged);
+            await store.save();
             if (added > 0) {
-                setFolders(merged);
-                await store.set('folders', merged);
-                await store.save();
                 toast.success(`Scan complete. Found ${added} new folders.`);
             } else {
                 toast.info("Scan complete. No new folders found.");
@@ -130,8 +137,11 @@ export function useTelegramConnection(onLogoutParent: () => void) {
     const handleCreateFolder = async (name: string) => {
         if (!store) return;
         try {
-            const newFolder = await invoke<TelegramFolder>('cmd_create_folder', { name });
-            const updated = [...folders, newFolder];
+            const newFolder = await invoke<TelegramFolder>('cmd_create_folder', { name, parentFolderId: activeFolderId });
+            const updated = [...folders, {
+                ...newFolder,
+                parent_id: newFolder.parent_id ?? activeFolderId,
+            }];
             setFolders(updated);
             await store.set('folders', updated);
             await store.save();
@@ -152,7 +162,9 @@ export function useTelegramConnection(onLogoutParent: () => void) {
 
         try {
             await invoke('cmd_delete_folder', { folderId });
-            const updated = folders.filter(f => f.id !== folderId);
+            const updated = folders
+                .filter(f => f.id !== folderId)
+                .map(f => f.parent_id === folderId ? { ...f, parent_id: null } : f);
             setFolders(updated);
             if (store) {
                 await store.set('folders', updated);

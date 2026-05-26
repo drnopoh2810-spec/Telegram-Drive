@@ -9,6 +9,7 @@ interface SidebarItemProps {
     onDrop: (e: React.DragEvent) => void;
     onDelete?: () => void;
     folderId: number | null;
+    depth?: number;
 }
 
 /**
@@ -17,7 +18,7 @@ interface SidebarItemProps {
  * With Tauri's dragDropEnabled: false, DOM events work reliably.
  * This component handles internal file moves via standard React drag events.
  */
-export function SidebarItem({ icon: Icon, label, active = false, onClick, onDrop, onDelete }: SidebarItemProps) {
+export function SidebarItem({ icon: Icon, label, active = false, onClick, onDrop, onDelete, depth = 0 }: SidebarItemProps) {
     const [isOver, setIsOver] = useState(false);
 
     return (
@@ -62,6 +63,7 @@ export function SidebarItem({ icon: Icon, label, active = false, onClick, onDrop
                     ? 'bg-telegram-primary/30 text-telegram-text ring-2 ring-telegram-primary scale-[1.02] shadow-lg'
                     : 'text-telegram-subtext hover:bg-telegram-hover hover:text-telegram-text'
                 }`}
+            style={{ paddingLeft: `${0.75 + depth * 0.9}rem` }}
         >
             <Icon className={`w-4 h-4 ${isOver ? 'text-telegram-primary' : ''}`} />
             <span className="flex-1 text-left truncate">{label}</span>

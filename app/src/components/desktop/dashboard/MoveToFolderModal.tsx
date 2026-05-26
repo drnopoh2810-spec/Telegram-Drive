@@ -1,5 +1,6 @@
 import { Plus, HardDrive, Folder } from 'lucide-react';
 import { TelegramFolder } from '../../../types';
+import { flattenFolderTree } from '../../../utils/folderTree';
 
 interface MoveToFolderModalProps {
     folders: TelegramFolder[];
@@ -9,6 +10,8 @@ interface MoveToFolderModalProps {
 }
 
 export function MoveToFolderModal({ folders, onClose, onSelect, activeFolderId }: MoveToFolderModalProps) {
+    const visibleFolders = flattenFolderTree(folders);
+
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
             <div className="bg-telegram-surface border border-telegram-border rounded-xl w-80 shadow-2xl overflow-hidden flex flex-col max-h-[80vh]" onClick={e => e.stopPropagation()}>
@@ -29,13 +32,14 @@ export function MoveToFolderModal({ folders, onClose, onSelect, activeFolderId }
                         </button>
                     )}
 
-                    {folders.map((f: any) => {
+                    {visibleFolders.map(({ folder: f, depth }: any) => {
                         if (f.id === activeFolderId) return null;
                         return (
                             <button
                                 key={f.id}
                                 onClick={() => onSelect(f.id)}
                                 className="w-full flex items-center gap-3 px-3 py-3 rounded-lg text-sm text-left text-telegram-text hover:bg-telegram-hover transition-colors"
+                                style={{ paddingLeft: `${0.75 + depth * 0.9}rem` }}
                             >
                                 <div className="w-8 h-8 rounded bg-telegram-hover flex items-center justify-center text-telegram-text">
                                     <Folder className="w-4 h-4" />
